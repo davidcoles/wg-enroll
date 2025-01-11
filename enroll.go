@@ -8,12 +8,14 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"net/netip"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -25,35 +27,38 @@ import (
 type DeviceInfo struct {
 	MAC       string            `json:"mac,omitempty"`
 	WireGuard string            `json:"wireguard,omitempty"`
-	Hardware  string            `json:"hardware,omitempty"`
-	SSH       map[string]string `json:"ssh,omitempty"`
+	Lshw      string            `json:"lshw,omitempty"`  // lshw -json
+	Lspci     string            `json:"lspci,omitempty"` // lspci -vvnn
+	SSH       map[string]string `json:"ssh,omitempty"`   // $(cat /etc/ssh/*.pub | sed 's/ /:/g' | cut -d: -f1-2)
 }
 
 // enrol <mac> <configfile> <lshw.json>
 // systemctl enable wg-quick@wg0.service
 
-// specify from command lineor something, eg.: $ <enrol-command> ssh-dss:AAAAC3NzaC1...
-var keys map[string]string = map[string]string{
-	//"ssh-dss": ...
-	//"ecdsa-sha2-nistp256": ...
-	//"ssh-ed25519": ...
-	//"ssh-rsa": ...
-}
+// -lshw
+// -lspci
+// $(cat /etc/ssh/*.pub | sed 's/ /:/g' | cut -d: -f1-2)
+
+var lshw = flag.String("lshw", "", "lshw -json")
+var lspci = flag.String("lspci", "", "lspci -vvnn")
 
 func main() {
 
 	var mac MAC
 
-	if m, err := hex.DecodeString(os.Args[1]); err != nil {
+	flag.Parse()
+	args := flag.Args()
+
+	if m, err := hex.DecodeString(args[0]); err != nil {
 		panic(err)
 	} else {
 		copy(mac[:], m)
 	}
 
-	wgpriv, wgpub := wg()
+	conf := loadConf(args[1])
+	keys := args[2:]
 
-	conf := loadConf(os.Args[2])
-	lshw := loadLSHW(os.Args[3])
+	wgpriv, wgpub := wg()
 
 	priv, pub := conf.keys()
 
@@ -62,8 +67,20 @@ func main() {
 	var device DeviceInfo
 	device.MAC = mac.String()
 	device.WireGuard = wgpub.encode()
-	device.Hardware = base64.RawURLEncoding.EncodeToString(lshw)
-	//device.SSH = keys
+	device.Lshw = loadFile(*lshw)
+	device.Lspci = loadFile(*lspci)
+	device.SSH = map[string]string{}
+
+	re := regexp.MustCompile("^([-a-z0-9]+):([-+_=/a-zA-Z0-9]+)$")
+
+	for _, k := range keys {
+		m := re.FindStringSubmatch(k)
+		if len(m) != 3 {
+			log.Fatal("Funny looking SSH key - ", k)
+		}
+
+		device.SSH[m[1]] = m[2]
+	}
 
 	payload, err := json.Marshal(device)
 
@@ -99,22 +116,27 @@ func main() {
 	fmt.Println(conf.conf(wgpriv, mac)) // wg0.conf
 }
 
-func loadLSHW(file string) []byte {
-	p, err := os.Open(file)
+func loadFile(file string) string {
+
+	if file == "" {
+		return ""
+	}
+
+	f, err := os.Open(file)
 
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	defer p.Close()
+	defer f.Close()
 
-	lshw, err := ioutil.ReadAll(p)
+	b, err := ioutil.ReadAll(f)
 
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	return lshw
+	return base64.RawURLEncoding.EncodeToString(b)
 }
 
 func loadConf(file string) (w wgconf) {
