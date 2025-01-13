@@ -116,20 +116,6 @@ func main() {
 		device.SSH[m[1]] = m[2]
 	}
 
-	/*
-		header64 := EdDSA(pub)
-		payload64, err := device.base64()
-
-		if err != nil {
-			log.Fatal("payload marshal", err)
-		}
-
-		preamble := header64 + "." + payload64
-		signature64 := base64.RawURLEncoding.EncodeToString(ed25519.Sign(priv, []byte(preamble)))
-
-		jwt := preamble + "." + signature64
-	*/
-
 	payload, err := device.marshal()
 
 	if err != nil {
