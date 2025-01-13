@@ -1,7 +1,7 @@
 {
-    "SigningKey": "private key",
-    "PublicKey": "wireguard server's public key",
-    "Endpoint": "<wireguard-host>:<port>",
+    "SigningKey": "<base64url(ed25519 32 byte seed)>",
+    "PublicKey": "<wireguard server public key>",
+    "Endpoint": "<wireguard-server-address>:<port>",
     "Prefix": "fd12:3456:789a:ffff::/64",
-    "Registrar": "http://registrar.example.com/device/"
+    "Registrar": "http://registrar.example.com/endpoint"
 }
