@@ -66,11 +66,8 @@ func main() {
 			panic(err)
 		}
 		seed := priv.Seed()
-		fmt.Println(
-			// use RawURLEncoding as it is more in keeping with JWT
-			base64.RawURLEncoding.EncodeToString(pub[:]),
-			base64.RawURLEncoding.EncodeToString(seed[:]),
-		)
+		// use RawURLEncoding as it is more in keeping with JWT
+		fmt.Printf("pub: %s priv: %s\n", base64.RawURLEncoding.EncodeToString(pub[:]), base64.RawURLEncoding.EncodeToString(seed[:]))
 		return
 	}
 
@@ -100,8 +97,8 @@ func main() {
 	var device DeviceInfo
 	device.MAC = mac.String()
 	device.WireGuard = wgpub.encode()
-	device.Lshw = loadFile(*lshw)
-	device.Lspci = loadFile(*lspci)
+	device.Lshw = base64.RawURLEncoding.EncodeToString(loadFile(*lshw))
+	device.Lspci = base64.RawURLEncoding.EncodeToString(loadFile(*lspci))
 	device.SSH = map[string]string{}
 	device.Timestamp = time.Now().UnixNano() / int64(time.Millisecond) // standard Javascript/JSON timestamp
 
@@ -145,16 +142,10 @@ func main() {
 	fmt.Println(conf.conf(wgpriv, mac)) // wg0.conf
 }
 
-func EdDSA(pub ed25519.PublicKey) string {
-	pub64 := base64.RawURLEncoding.EncodeToString(pub[:])
-	header := []byte(`{"kty":"OKP","alg":"EdDSA","crv":"Ed25519","x":"` + pub64 + `"}`)
-	return base64.RawURLEncoding.EncodeToString(header)
-}
-
-func loadFile(file string) string {
+func loadFile(file string) []byte {
 
 	if file == "" {
-		return ""
+		return nil
 	}
 
 	f, err := os.Open(file)
@@ -171,25 +162,12 @@ func loadFile(file string) string {
 		log.Fatal(err)
 	}
 
-	return base64.RawURLEncoding.EncodeToString(b)
+	return b
 }
 
 func loadConf(file string) (w wgconf) {
-	c, err := os.Open(file)
 
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	defer c.Close()
-
-	conf, err := ioutil.ReadAll(c)
-
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	err = json.Unmarshal(conf, &w)
+	err := json.Unmarshal(loadFile(file), &w)
 
 	if err != nil {
 		log.Fatal(err)
@@ -252,7 +230,6 @@ type wgconf struct {
 	Registrar           string
 }
 
-// func (c *wgconf) keys() (ed25519.PrivateKey, ed25519.PublicKey) {
 func (c *wgconf) keys() (ed25519.PublicKey, ed25519.PrivateKey, error) {
 	seed, err := base64.RawURLEncoding.DecodeString(c.SigningKey) // use RawURLEncoding as it is more in keeping with JWT
 
