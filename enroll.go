@@ -92,7 +92,7 @@ func main() {
 		log.Fatalf("Couldn't load signing key: %s\n", err)
 	}
 
-	log.Println("Signing with", base64.StdEncoding.EncodeToString(pub[:]), wgpriv.encode(), wgpub.encode())
+	log.Println("Signing with", base64.StdEncoding.EncodeToString(pub[:]))
 
 	var device DeviceInfo
 	device.MAC = mac.String()
@@ -121,7 +121,6 @@ func main() {
 
 	jwt := tokenise(payload, priv)
 
-	log.Println(jwt)
 	log.Println("Registrar is", conf.Registrar)
 
 	url := conf.Registrar + mac.String()
