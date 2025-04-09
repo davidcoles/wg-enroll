@@ -26,10 +26,10 @@ import (
 type DeviceInfo struct {
 	MAC       string            `json:"mac,omitempty"`
 	WireGuard string            `json:"wireguard,omitempty"`
-	Lshw      string            `json:"lshw,omitempty"`  // base64url(lshw -json)
-	Lspci     string            `json:"lspci,omitempty"` // base64url(lspci -vvnn)
-	SSH       map[string]string `json:"ssh,omitempty"`   // $(cat /etc/ssh/*.pub | sed 's/ /:/g' | cut -d: -f1-2)
-	Timestamp int64             `json:"timestamp,omitempty"`
+	Lshw      string            `json:"lshw,omitempty"`      // lshw -json
+	Lspci     string            `json:"lspci,omitempty"`     // lspci -vvnn
+	SSH       map[string]string `json:"ssh,omitempty"`       // $(cat /etc/ssh/*.pub | sed 's/ /:/g' | cut -d: -f1-2)
+	Timestamp int64             `json:"timestamp,omitempty"` // seconds since epoch
 }
 
 func (d *DeviceInfo) base64() (string, error) {
@@ -97,10 +97,12 @@ func main() {
 	var device DeviceInfo
 	device.MAC = mac.String()
 	device.WireGuard = wgpub.encode()
-	device.Lshw = base64.RawURLEncoding.EncodeToString(loadFile(*lshw))
-	device.Lspci = base64.RawURLEncoding.EncodeToString(loadFile(*lspci))
+	//device.Lshw = base64.RawURLEncoding.EncodeToString(loadFile(*lshw))
+	//device.Lspci = base64.RawURLEncoding.EncodeToString(loadFile(*lspci))
+	device.Lshw = base64.StdEncoding.EncodeToString(loadFile(*lshw))   // to work with standard CLI base64 -d
+	device.Lspci = base64.StdEncoding.EncodeToString(loadFile(*lspci)) // to work with standard CLI base64 -d
 	device.SSH = map[string]string{}
-	device.Timestamp = time.Now().UnixNano() / int64(time.Millisecond) // standard Javascript/JSON timestamp
+	device.Timestamp = time.Now().Unix() // seconds since epoch
 
 	re := regexp.MustCompile("^([-a-z0-9]+):([-+_=/a-zA-Z0-9]+)$")
 
@@ -256,6 +258,7 @@ func (c *wgconf) conf(priv Key, mac MAC) string {
 	s = append(s, "[Interface]")
 	s = append(s, "PrivateKey = "+priv.String())
 	s = append(s, "Address = "+addr.String())
+	s = append(s, "MTU = 1400")
 	s = append(s, "[Peer]")
 	s = append(s, "PublicKey = "+c.PublicKey)
 	s = append(s, "Endpoint = "+c.Endpoint)
